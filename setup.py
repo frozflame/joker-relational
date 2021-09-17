@@ -14,7 +14,7 @@ from setuptools import find_packages, find_namespace_packages
 
 _nsp = 'joker'
 _pkg = 'relational'
-_desc = ''
+_desc = 'auxiliary tools to deal with relational databases'
 _names = [_nsp, _pkg]
 _names = [s for s in _names if s]
 
@@ -61,18 +61,9 @@ config = {
     'packages': _find_packages(),
     'zip_safe': False,
     'install_requires': read("requirements.txt"),
-    # 'entry_points': {'console_scripts': ['joker-relational = joker.relational.__main__:run']},
     'classifiers': [
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.0',
-        'Programming Language :: Python :: 3.1',
-        'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
