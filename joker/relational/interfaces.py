@@ -3,6 +3,7 @@
 
 import logging
 
+import sqlalchemy
 from sqlalchemy import MetaData
 from sqlalchemy.engine import Engine
 
@@ -13,6 +14,11 @@ class SQLInterface:
     def __init__(self, engine: Engine, metadata: MetaData):
         self.engine = engine
         self.metadata = metadata
+
+    @classmethod
+    def from_config(cls, options: dict, metadata: MetaData = None):
+        engine = sqlalchemy.create_engine(**options)
+        return cls(engine, metadata or MetaData())
 
     def execute_script(self, path: str):
         with self.engine.connect() as conn:
