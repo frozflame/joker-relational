@@ -3,6 +3,7 @@
 
 import logging
 import time
+import os
 
 import sqlalchemy
 import sqlalchemy.exc
@@ -17,11 +18,18 @@ class SQLInterface:
     def __init__(self, engine: Engine, metadata: MetaData):
         self.engine = engine
         self.metadata = metadata
+        self._pid = os.getpid()
 
     @classmethod
     def from_config(cls, options: dict, metadata: MetaData = None):
         engine = sqlalchemy.create_engine(**options)
         return cls(engine, metadata or MetaData())
+
+    def execute(self, statement):
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(str(statement))
+        with self.engine.connect() as conn:
+            return conn.execute(statement)
 
     def execute_script(self, path: str):
         with self.engine.connect() as conn:
@@ -29,11 +37,12 @@ class SQLInterface:
             _logger.debug('execute sql script: %s', path)
             return conn.execute(open(path).read())
 
-    def execute(self, statement):
-        if _logger.isEnabledFor(logging.DEBUG):
-            _logger.debug(str(statement))
-        with self.engine.connect() as conn:
-            return conn.execute(statement)
+    def just_after_fork(self):
+        # http://docs.sqlalchemy.org/en/latest/core/pooling.html
+        # section "Using Connection Pools with Multiprocessing"
+        if self._pid != os.getpid():
+            self.engine.dispose()
+            self._pid = os.getpid()
 
     def get_all_schemas(self) -> set:
         schemas = {'serial'}
