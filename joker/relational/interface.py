@@ -4,6 +4,7 @@
 import logging
 import time
 import os
+from fnmatch import fnmatchcase
 
 import sqlalchemy
 import sqlalchemy.exc
@@ -59,11 +60,21 @@ class SQLInterface:
             _logger.info('creating schema: %s', schema)
             self.engine.execute(f'CREATE SCHEMA IF NOT EXISTS {schema};')
 
-    def create_all_tables(self):
+    def create_all_tables(self, ignore='*_view'):
         tables = self.metadata.tables.values()
-        tables = [t for t in tables if not t.name.endswith('_view')]
+        if ignore:
+            tables = [t for t in tables if not fnmatchcase(t, ignore)]
         _logger.info('creating tables: %s', tables)
         self.metadata.create_all(self.engine, tables=tables)
+
+    def get_sibling_engine(self, database: str, **kwargs) -> Engine:
+        url = self.engine.url.set(database=database)
+        return sqlalchemy.create_engine(url, **kwargs)
+
+    def get_sibling(self, database: str, **kwargs) -> 'SQLInterface':
+        metadata = kwargs.get('metadata') or sqlalchemy.MetaData()
+        engine = self.get_sibling_engine(database, **kwargs)
+        return SQLInterface(engine, metadata)
 
     def refresh_materialized_views(self, mviews: list, concurrently=True):
         for v in mviews:
