@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+import itertools
 import logging
-import time
 import os
+import time
+import typing
 from fnmatch import fnmatchcase
+from typing import Union
 
 import sqlalchemy
 import sqlalchemy.exc
@@ -46,26 +49,29 @@ class SQLInterface:
             self._pid = os.getpid()
 
     def get_all_schemas(self) -> set:
-        schemas = {'serial'}
+        # TODO: this line has too much customization
+        schemas = {'public'}
         for tbl in self.metadata.tables.values():
             if tbl.schema is None:
                 continue
             schemas.add(tbl.schema)
         return schemas
 
-    def create_all_schemas(self):
-        schemas = self.get_all_schemas()
-        schemas.add('public')
+    def create_schemas(self, schemas: list = None):
+        if schemas is None:
+            schemas = self.get_all_schemas()
         for schema in schemas:
             _logger.info('creating schema: %s', schema)
             self.engine.execute(f'CREATE SCHEMA IF NOT EXISTS {schema};')
 
-    def create_all_tables(self, ignore='*_view'):
-        tables = self.metadata.tables.values()
-        if ignore:
-            tables = [t for t in tables if not fnmatchcase(t, ignore)]
-        _logger.info('creating tables: %s', tables)
-        self.metadata.create_all(self.engine, tables=tables)
+    def create_tables(self, fullnames: list = None):
+        if _logger.isEnabledFor(logging.INFO):
+            names = self.metadata.tables if fullnames is None else fullnames
+            _logger.info('creating tables: %s', ' '.join(names))
+        if fullnames is None:
+            return self.metadata.create_all(self.engine)
+        tables = [self.metadata.tables[name] for name in fullnames]
+        return self.metadata.create_all(self.engine, tables=tables)
 
     def get_sibling_engine(self, database: str, **kwargs) -> Engine:
         url = self.engine.url.set(database=database)
@@ -77,6 +83,7 @@ class SQLInterface:
         return SQLInterface(engine, metadata)
 
     def refresh_materialized_views(self, mviews: list, concurrently=True):
+        # https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html
         for v in mviews:
             if concurrently:
                 self.execute(f'REFRESH MATERIALIZED VIEW CONCURRENTLY {v};')
@@ -85,9 +92,25 @@ class SQLInterface:
             _logger.info('mview refreshed: %s', v)
         return mviews
 
-    def wait_until_server_ready(self, timeout: int = 30, period: int = 3):
+
+# noinspection SqlNoDataSourceInspection
+class PostgreSQLAdminInterface(SQLInterface):
+    def wait_until_server_ready(
+            self, timeout: int = 30,
+            interval: Union[int, float, typing.Iterable] = 3):
+        """
+        Args:
+            timeout: in second
+            interval: a number or an iterable of numbers (e.g. [1, 2, 4, ...])
+        Returns:
+            None
+        """
         start = time.time()
-        for _ in range(0, timeout, period):
+        if isinstance(interval, (int, float)):
+            interval = itertools.repeat(interval)
+        else:
+            interval = itertools.cycle(interval)
+        for sec in interval:
             try:
                 # language=SQL
                 self.execute('SELECT 1;').scalar()
@@ -95,14 +118,18 @@ class SQLInterface:
                 return
             except sqlalchemy.exc.OperationalError as exc:
                 _logger.info(
-                    'failed to connect to %s -- %s',
+                    'database server is not ready: %s -- %s',
                     self.engine.url, exc.args[0],
                 )
-                time.sleep(period)
-        if (remaining := timeout + start - time.time()) > 0:
-            time.sleep(remaining)
+            remaining = timeout + start - time.time()
+            if remaining < 0:
+                break
+            time.sleep(min(remaining, sec))
+        _logger.info('failed to connect to %s', self.engine.url)
 
     def exists(self, database: str):
+        # https://www.postgresql.org/docs/current/catalog-pg-database.html
+        # alternative: from sqlalchemy_utils.functions import database_exists
         sql = f"SELECT 1 FROM pg_database WHERE datname='{database}';"
         try:
             return bool(self.execute(sql).scalar())
