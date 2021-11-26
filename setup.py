@@ -14,7 +14,6 @@ from setuptools import find_packages, find_namespace_packages
 
 _nsp = 'joker'
 _pkg = 'relational'
-_desc = 'auxiliary tools to deal with relational databases'
 _names = [_nsp, _pkg]
 _names = [s for s in _names if s]
 
@@ -52,11 +51,11 @@ def _find_packages():
 config = {
     'name': 'joker-relational',
     'version': _find_version(),
-    'description': '' + _desc,
+    'description': 'auxiliary tools to deal with relational databases',
     'keywords': '',
-    'url': 'example.com',
-    'author': 'anonym',
-    'author_email': 'anonym@example.com',
+    'url': 'https://github.com/frozflame/joker-relational',
+    'author': 'frozflame',
+    'author_email': 'frozflame@outlook.com',
     'license': "GNU General Public License (GPL)",
     'packages': _find_packages(),
     'zip_safe': False,
