@@ -34,6 +34,9 @@ class SQLInterface:
         with self.engine.connect() as conn:
             return conn.execute(statement)
 
+    def __call__(self, statement):
+        return self.execute(statement)
+
     def execute_script(self, path: str):
         with self.engine.connect() as conn:
             conn.execute('COMMIT;')
