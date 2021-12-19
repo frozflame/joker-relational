@@ -35,3 +35,16 @@ def human_lang_join(phrases: list, conj='and', punct=',', sep=' '):
     parts.extend([phrases[-2], conj, phrases[-1]])
     return sep.join(parts)
 
+
+class ColumnAlias:
+    __slots__ = ['column', 'alias']
+
+    def __init__(self, column):
+        self.column = column
+
+    def __set_name__(self, _, alias: str):
+        self.alias = alias
+
+    def __get__(self, _, owner):
+        return self.column.label(self.alias)
+
