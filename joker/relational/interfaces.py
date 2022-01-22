@@ -12,12 +12,15 @@ import sqlalchemy
 import sqlalchemy.exc
 from sqlalchemy import MetaData
 from sqlalchemy.engine import Engine
+from sqlalchemy import text
 
 _logger = logging.getLogger(__name__)
 
 
 # noinspection SqlNoDataSourceInspection
 class SQLInterface:
+    _loglevel = logging.INFO
+
     def __init__(self, engine: Engine, metadata: MetaData):
         self.engine = engine
         self.metadata = metadata
@@ -29,17 +32,16 @@ class SQLInterface:
         return cls(engine, metadata or MetaData())
 
     def execute(self, statement):
-        if _logger.isEnabledFor(logging.DEBUG):
-            _logger.debug(str(statement))
-        with self.engine.connect() as conn:
+        if _logger.isEnabledFor(self._loglevel):
+            _logger.log(self._loglevel, str(statement))
+        with self.engine.begin() as conn:
             return conn.execute(statement)
 
     def __call__(self, statement):
         return self.execute(statement)
 
     def execute_script(self, path: str):
-        with self.engine.connect() as conn:
-            conn.execute('COMMIT;')
+        with self.engine.begin() as conn:
             _logger.debug('execute sql script: %s', path)
             return conn.execute(open(path).read())
 
@@ -50,29 +52,15 @@ class SQLInterface:
             self.engine.dispose()
             self._pid = os.getpid()
 
-    def get_all_schemas(self) -> set:
-        # TODO: this line has too much customization
-        schemas = {'public'}
-        for tbl in self.metadata.tables.values():
-            if tbl.schema is None:
-                continue
-            schemas.add(tbl.schema)
-        return schemas
-
-    def create_schemas(self, schemas: list = None):
-        if schemas is None:
-            schemas = self.get_all_schemas()
-        for schema in schemas:
-            _logger.info('creating schema: %s', schema)
-            self.engine.execute(f'CREATE SCHEMA IF NOT EXISTS {schema};')
-
-    def create_tables(self, fullnames: list = None):
+    def create_tables(self, fullnames: list = None, ignore='*_view'):
         if _logger.isEnabledFor(logging.INFO):
             names = self.metadata.tables if fullnames is None else fullnames
             _logger.info('creating tables: %s', ' '.join(names))
         if fullnames is None:
             return self.metadata.create_all(self.engine)
         tables = [self.metadata.tables[name] for name in fullnames]
+        if ignore:
+            tables = [t for t in tables if not fnmatchcase(t.name, ignore)]
         return self.metadata.create_all(self.engine, tables=tables)
 
     def get_sibling_engine(self, database: str, **kwargs) -> Engine:
@@ -83,6 +71,26 @@ class SQLInterface:
         metadata = kwargs.get('metadata') or sqlalchemy.MetaData()
         engine = self.get_sibling_engine(database, **kwargs)
         return SQLInterface(engine, metadata)
+
+
+class PostgreSQLInterface(SQLInterface):
+    _preset_schemas = {'public'}
+
+    def get_schemas(self) -> set:
+        schemas = self._preset_schemas.copy()
+        for tbl in self.metadata.tables.values():
+            if tbl.schema is None:
+                continue
+            schemas.add(tbl.schema)
+        return schemas
+
+    def create_schemas(self, schemas: list = None):
+        if schemas is None:
+            schemas = self.get_schemas()
+        for schema in schemas:
+            _logger.info('creating schema: %s', schema)
+            stmt = text(f'CREATE SCHEMA IF NOT EXISTS {schema};')
+            self.execute(stmt)
 
     def refresh_materialized_views(self, mviews: list, concurrently=True):
         # https://www.postgresql.org/docs/current/sql-refreshmaterializedview.html
@@ -96,7 +104,7 @@ class SQLInterface:
 
 
 # noinspection SqlNoDataSourceInspection
-class PostgreSQLAdminInterface(SQLInterface):
+class PostgreSQLAdminInterface(PostgreSQLInterface):
     def wait_until_server_ready(
             self, timeout: int = 30,
             interval: Union[int, float, typing.Iterable] = 3):
