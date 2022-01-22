@@ -37,14 +37,15 @@ def human_lang_join(phrases: list, conj='and', punct=',', sep=' '):
 
 
 class ColumnAlias:
-    __slots__ = ['column', 'alias']
+    __slots__ = ['column', 'name']
 
     def __init__(self, column):
         self.column = column
 
-    def __set_name__(self, _, alias: str):
-        self.alias = alias
+    def __set_name__(self, _, name: str):
+        self.name = name
 
-    def __get__(self, _, owner):
-        return self.column.label(self.alias)
-
+    def __get__(self, instance, cls):
+        if instance is None:
+            return self.column.label(self.name)
+        return getattr(instance, self.column.key)
