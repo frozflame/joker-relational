@@ -41,9 +41,12 @@ class SQLInterface:
         return self.execute(statement)
 
     def execute_script(self, path: str):
-        with self.engine.begin() as conn:
+        try:
+            conn = self.engine.raw_connection()
             _logger.debug('execute sql script: %s', path)
-            return conn.execute(open(path).read())
+            return conn.execute(open(path).read(), multi=True)
+        finally:
+            conn.close()
 
     def just_after_fork(self):
         # http://docs.sqlalchemy.org/en/latest/core/pooling.html
