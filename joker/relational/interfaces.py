@@ -6,13 +6,14 @@ import logging
 import os
 import time
 import typing
+from fnmatch import fnmatchcase
 from typing import Union
 
 import sqlalchemy
 import sqlalchemy.exc
 from sqlalchemy import MetaData
-from sqlalchemy.engine import Engine
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 _logger = logging.getLogger(__name__)
 
@@ -41,12 +42,16 @@ class SQLInterface:
         return self.execute(statement)
 
     def execute_script(self, path: str):
+        connection = self.engine.raw_connection()
+        _logger.debug('execute sql script: %s', path)
         try:
-            conn = self.engine.raw_connection()
-            _logger.debug('execute sql script: %s', path)
-            return conn.execute(open(path).read(), multi=True)
+            with connection.cursor() as cursor:
+                return cursor.execute(open(path).read())
+        except Exception:
+            connection.rollback()
         finally:
-            conn.close()
+            connection.commit()
+            connection.close()
 
     def just_after_fork(self):
         # http://docs.sqlalchemy.org/en/latest/core/pooling.html
