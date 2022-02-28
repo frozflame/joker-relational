@@ -18,6 +18,10 @@ from sqlalchemy.engine import Engine
 _logger = logging.getLogger(__name__)
 
 
+def _stringify_statement(statement):
+    return ' '.join(str(statement).splitlines())
+
+
 # noinspection SqlNoDataSourceInspection
 class SQLInterface:
     _loglevel = logging.INFO
@@ -32,16 +36,19 @@ class SQLInterface:
         engine = sqlalchemy.create_engine(**options)
         return cls(engine, metadata or MetaData())
 
-    def execute(self, statement):
+    def execute(self, statement, *multiparams, **params):
         if _logger.isEnabledFor(self._loglevel):
-            _logger.log(self._loglevel, str(statement))
+            _logger.log(self._loglevel, _stringify_statement(statement))
         with self.engine.begin() as conn:
-            return conn.execute(statement)
+            return conn.execute(statement, *multiparams, **params)
 
     def __call__(self, statement):
         return self.execute(statement)
 
     def execute_script(self, path: str):
+        # https://docs.sqlalchemy.org/en/12/core/connections.html#sqlalchemy.engine.Engine.raw_connection
+        # https://www.psycopg.org/docs/connection.html
+        # https://www.psycopg.org/docs/cursor.html
         connection = self.engine.raw_connection()
         _logger.debug('execute sql script: %s', path)
         try:
