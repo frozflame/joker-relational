@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
+from __future__ import annotations
 
 import itertools
 import logging
@@ -11,15 +12,12 @@ from typing import Union
 
 import sqlalchemy
 import sqlalchemy.exc
-from sqlalchemy import MetaData
-from sqlalchemy import text
+from sqlalchemy import MetaData, text
 from sqlalchemy.engine import Engine
 
+from joker.relational.utils import _stringify_statement
+
 _logger = logging.getLogger(__name__)
-
-
-def _stringify_statement(statement):
-    return ' '.join(str(statement).splitlines())
 
 
 # noinspection SqlNoDataSourceInspection

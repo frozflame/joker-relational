@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # coding: utf-8
+from __future__ import annotations
 
 from collections import OrderedDict
 
@@ -49,3 +50,7 @@ class ColumnAlias:
         if instance is None:
             return self.column.label(self.name)
         return getattr(instance, self.column.key)
+
+
+def _stringify_statement(statement):
+    return ' '.join(str(statement).splitlines())
